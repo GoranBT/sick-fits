@@ -41,23 +41,58 @@ class CreateItem extends Component {
     this.setState({ [name]: value });
   };
 
+  uploadFile = async e => {
+    console.log('upload file');
+    const files = e.target.files;
+    const data = new FormData();
+    data.append('file', files[0]);
+    data.append('upload_preset', 'sickfits');
+
+    const res = await fetch(
+      'https://api.cloudinary.com/v1_1/dhubtbywz/image/upload',
+      {
+        method: 'POST',
+        body: data
+      }
+    );
+    const file = await res.json();
+    console.log(file);
+    this.setState({
+      image: file.secure_url,
+      largeImage: file.eager[0].secure_url
+    });
+  };
+
   render() {
     return (
       <Mutation mutation={CREATE_ITEM_MUTATION} variables={this.state}>
         {(createItem, { loading, error, called, data }) => (
           <Form
-            onSubmit={async (e) => {
+            onSubmit={async e => {
               e.preventDefault();
-              const res = await createItem()
-              console.log(res)
+              const res = await createItem();
+              console.log(res);
               Router.push({
-                  pathname: '/item',
-                  query: {id: res.data.createItem.id}
-              })
+                pathname: '/item',
+                query: { id: res.data.createItem.id }
+              });
             }}
           >
-          <Error error={error} />
+            <Error error={error} />
             <fieldset disabled={loading} aria-busy={loading}>
+              <label htmlFor="file">
+                File
+                <input
+                  type="file"
+                  id="file"
+                  name="file"
+                  placeholder="Upload File"
+                  required
+                  value={this.state.file}
+                  onChange={this.uploadFile}
+                />
+                {this.state.image && <img width='200' src={this.state.image} alt="upload image" />}
+              </label>
               <label htmlFor="title">
                 Title
                 <input
