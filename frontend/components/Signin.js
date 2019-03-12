@@ -3,13 +3,10 @@ import { Mutation } from 'react-apollo';
 import gql from 'graphql-tag';
 import Form from './styles/Form';
 import Error from './ErrorMessage';
-import {CURRENT_USER_QUERY} from './User';
+import { CURRENT_USER_QUERY } from './User';
 
 const SIGNIN_MUTATION = gql`
-  mutation SIGNIN_MUTATION(
-    $email: String!
-    $password: String!
-  ) {
+  mutation SIGNIN_MUTATION($email: String!, $password: String!) {
     signin(email: $email, password: $password) {
       id
       email
@@ -20,6 +17,7 @@ const SIGNIN_MUTATION = gql`
 
 class Signin extends Component {
   state = {
+    name: '',
     password: '',
     email: ''
   };
@@ -28,18 +26,22 @@ class Signin extends Component {
   };
   render() {
     return (
-      <Mutation mutation={SIGNIN_MUTATION} variables={this.state} refetchQuery={[{query: CURRENT_USER_QUERY}]}>
+      <Mutation
+        mutation={SIGNIN_MUTATION}
+        variables={this.state}
+        refetchQueries={[{ query: CURRENT_USER_QUERY }]}
+      >
         {(signup, { error, loading }) => (
           <Form
             method="post"
             onSubmit={async e => {
               e.preventDefault();
               await signup();
-              this.setState({email: '', password: '' });
+              this.setState({ name: '', email: '', password: '' });
             }}
           >
             <fieldset disabled={loading} aria-busy={loading}>
-              <h2>Sign into your Account</h2>
+              <h2>Sign into your account</h2>
               <Error error={error} />
               <label htmlFor="email">
                 Email
