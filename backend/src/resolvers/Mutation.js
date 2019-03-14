@@ -2,11 +2,10 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { randomBytes } = require('crypto');
 const { promisify } = require('util');
+const { transport, makeANiceEmail } = require('../mail');
 
 const Mutations = {
   async createItem(parent, args, ctx, info) {
-    // TODO: Check if they are logged in
-
     const item = await ctx.db.mutation.createItem(
       {
         data: {
@@ -20,7 +19,7 @@ const Mutations = {
 
     return item;
   },
-  async updateItem(parent, args, ctx, info) {
+  updateItem(parent, args, ctx, info) {
     const updates = { ...args };
     delete updates.id;
     return ctx.db.mutation.updateItem(
@@ -35,7 +34,7 @@ const Mutations = {
   },
   async deleteItem(parent, args, ctx, info) {
     const where = { id: args.id };
-    const item = await ctx.db.query.item({ where }, `{ id title }`);
+    const item = await ctx.db.query.item({ where }, `{ id title}`);
     return ctx.db.mutation.deleteItem({ where }, info);
   },
   async signup(parent, args, ctx, info) {
@@ -54,7 +53,7 @@ const Mutations = {
     const token = jwt.sign({ userId: user.id }, process.env.APP_SECRET);
     ctx.response.cookie('token', token, {
       httpOnly: true,
-      maxAge: 1000 * 60 * 60 * 24 * 365
+      maxAge: 1000 * 60 * 60 * 24 * 365 // 1 year cookie
     });
     return user;
   },
@@ -65,10 +64,9 @@ const Mutations = {
     }
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) {
-      throw new Error('Invalid Password');
+      throw new Error('Invalid Password!');
     }
     const token = jwt.sign({ userId: user.id }, process.env.APP_SECRET);
-
     ctx.response.cookie('token', token, {
       httpOnly: true,
       maxAge: 1000 * 60 * 60 * 24 * 365
@@ -84,18 +82,29 @@ const Mutations = {
     if (!user) {
       throw new Error(`No such user found for email ${args.email}`);
     }
-    const randomBytesPromisified = promisify(randomBytes);
-    const resetToken = (await randomBytesPromisified(20)).toString('hex');
-    const resetTokenExpiry = Date.now() + 36000000;
+    const randomBytesPromiseified = promisify(randomBytes);
+    const resetToken = (await randomBytesPromiseified(20)).toString('hex');
+    const resetTokenExpiry = Date.now() + 3600000; // 1 hour from now
     const res = await ctx.db.mutation.updateUser({
       where: { email: args.email },
       data: { resetToken, resetTokenExpiry }
     });
-    return { message: 'Thanks' };
+    const mailRes = await transport.sendMail({
+      from: 'wes@wesbos.com',
+      to: user.email,
+      subject: 'Your Password Reset Token',
+      html: makeANiceEmail(`Your Password Reset Token is here!
+      \n\n
+      <a href="${
+        process.env.FRONTEND_URL
+      }/reset?resetToken=${resetToken}">Click Here to Reset</a>`)
+    });
+
+    return { message: 'Thanks!' };
   },
   async resetPassword(parent, args, ctx, info) {
     if (args.password !== args.confirmPassword) {
-      throw new Error('Yo password dont match');
+      throw new Error("Yo Passwords don't match!");
     }
     const [user] = await ctx.db.query.users({
       where: {
@@ -104,10 +113,9 @@ const Mutations = {
       }
     });
     if (!user) {
-      throw new Error('This token is eather invalid or expired!');
+      throw new Error('This token is either invalid or expired!');
     }
     const password = await bcrypt.hash(args.password, 10);
-
     const updatedUser = await ctx.db.mutation.updateUser({
       where: { email: user.email },
       data: {
